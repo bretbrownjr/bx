@@ -1,0 +1,72 @@
+#!/usr/bin/env -S cmake -P
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+
+cmake_minimum_required(VERSION 3.24)
+
+list(APPEND CMAKE_MESSAGE_INDENT "bx -- ")
+message(TRACE "ENV{BX_CACHE_DIR}=\"$ENV{BX_CACHE_DIR}\"")
+if(DEFINED ENV{BX_CACHE_DIR})
+  set(bx_cache_dir "$ENV{BX_CACHE_DIR}")
+else()
+  set(bx_cache_dir "${CMAKE_CURRENT_BINARY_DIR}/.bx_cache")
+endif()
+message(TRACE "Using bx cache directory: \"${bx_cache_dir}\".")
+
+message(TRACE "ENV{BX_INFRA_DIR}=\"$ENV{BX_INFRA_DIR}\"")
+message(TRACE "ENV{BX_VERSION}=\"$ENV{BX_VERSION}\"")
+message(TRACE "ENV{BX_HASH}=\"$ENV{BX_HASH}\"")
+if(DEFINED ENV{BX_INFRA_DIR})
+  set(bx_dir "$ENV{BX_INFRA_DIR}")
+else()
+  if(DEFINED ENV{BX_VERSION})
+    set(bx_version "$ENV{BX_VERSION}")
+    if(NOT DEFINED ENV{BX_HASH})
+      message(FATAL_ERROR "BX_HASH must be set if BX_VERSION is set.")
+    endif()
+    set(bx_hash "$ENV{BX_HASH}")
+  else()
+    set(bx_version "0.0.1")
+    set(bx_hash "9c804168d4ddb053286cc2ae8f4ebb3407daa5209e6d64797b3ab4a47102545a4fb51fbd713606310744ed76a6d827e288cbe50a31561830d9adc6d3a3a6966c")
+  endif()
+  message(TRACE "Using bx version: \"${bx_version}\".")
+  set(bx_dir "${bx_cache_dir}/infra-${bx_version}")
+endif()
+message(TRACE "Using bx directory: \"${bx_dir}\".")
+
+if(NOT EXISTS "${bx_dir}")
+  set(bx_release_url "https://github.com/bretbrownjr/infra/archive/refs/tags/${bx_version}.tar.gz")
+  set(bx_release "${bx_cache_dir}/infra-${bx_version}.tar.gz")
+
+  file(MAKE_DIRECTORY "${bx_cache_dir}")
+  message(STATUS
+    "Downloading bx release from \"${bx_release_url}\" to \"${bx_release}\"."
+  )
+  file(DOWNLOAD
+    "${bx_release_url}" "${bx_release}"
+    EXPECTED_HASH "SHA512=${bx_hash}"
+    TIMEOUT 20
+  )
+
+  if(NOT EXISTS "${bx_dir}")
+    file(ARCHIVE_EXTRACT
+      INPUT "${bx_release}"
+      DESTINATION "${bx_cache_dir}"
+      TOUCH  # This might clue in CMake that a reconfigure could be appropriate
+    )
+    message(TRACE "Extracted bx release to \"${bx_dir}\".")
+  endif()
+endif()
+
+set(bx_path "${bx_dir}/cmake/bx.cmake")
+
+set(ii 2) # Skip: cmake;-P
+while (ii LESS CMAKE_ARGC)
+  list(APPEND BX_ARGV "${CMAKE_ARGV${ii}}")
+  math(EXPR ii "${ii} + 1")
+endwhile()
+
+message(STATUS "Loading \"${bx_path}\".")
+list(POP_BACK CMAKE_MESSAGE_INDENT)
+include("${bx_path}")
+
+# vi: ft=cmake
