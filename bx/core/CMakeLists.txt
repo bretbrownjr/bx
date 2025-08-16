@@ -15,7 +15,10 @@ target_sources(bx_core PUBLIC
 
 find_package(CLI11 REQUIRED)
 find_package(spdlog REQUIRED)
+find_package(tl-expected REQUIRED)
+
 target_link_libraries(bx_core PUBLIC
-  spdlog::spdlog
   CLI11::CLI11
+  spdlog::spdlog
+  tl::expected
 )
