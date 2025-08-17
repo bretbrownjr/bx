@@ -4,12 +4,14 @@ add_library(bx_core)
 add_library(bx::core ALIAS bx_core)
 
 target_sources(bx_core PRIVATE
+  args.cpp
   run.cpp
 )
 target_sources(bx_core PUBLIC
   FILE_SET HEADERS
   BASE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/../.."
   FILES
+    "args.hpp"
     "run.hpp"
 )
 
