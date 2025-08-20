@@ -2,62 +2,254 @@
 
 #include <bx/core/args.hpp>
 
-#include <CLI/CLI.hpp>
+#include <bx/core/verbosity.hpp>
+
+#include <fmt/core.h>
 #include <spdlog/spdlog.h>
+#include <tl/expected.hpp>
+
+#include <cstdlib>
+#include <memory>
+#include <string>
 
 namespace bx::core {
 
+namespace {
+
 static constexpr std::string version_string = "0.0.1";
 
-static constexpr char app_description[] = "A better build experience for C++ projects.";
+static constexpr char short_description[] = "A better build experience for C++ projects.";
 
-tl::expected<Config, Status> parse(std::span<std::string_view> args) {
+static std::vector<std::string_view> const subcommand_names = {"cmake", "help", "run", "version"};
+
+struct State {
+  Args remaining;
+};
+
+enum class Status { match, no_match, bad_argument };
+
+template <typename Tcallback>
+concept OnSubcommand = std::invocable<Tcallback, std::string_view, Args> &&
+                       std::same_as<std::invoke_result_t<Tcallback, std::string_view, Args>, void>;
+
+template <OnSubcommand Tcallback>
+Status parse_subcommand(User &user, State &state, Tcallback &&callback) {
+  for (const auto &subcommand_name : subcommand_names) {
+    if (state.remaining.front() == subcommand_name) {
+      state.remaining = state.remaining.subspan(1); // Remove the matched subcommand
+      callback(subcommand_name, state.remaining);
+      return Status::match;
+    }
+  }
+  return Status::no_match;
+}
+
+template <typename Tcallback>
+concept OnHelp = std::invocable<Tcallback> && std::same_as<std::invoke_result_t<Tcallback>, void>;
+
+template <OnHelp Tcallback> Status parse_help(User &user, State &state, Tcallback &&callback) {
+  if (state.remaining.front() == "--help" || state.remaining.front() == "-h") {
+    state.remaining = state.remaining.subspan(1); // Remove the flag
+    callback();
+    return Status::match;
+  }
+  return Status::no_match;
+}
+
+// Parse flags like --verbose=debug or --verbose or -v
+template <typename Tcallback>
+concept OnVerbosity = std::invocable<Tcallback, Verbosity::Type> &&
+                      std::same_as<std::invoke_result_t<Tcallback, Verbosity::Type>, void>;
+
+template <OnVerbosity Tcallback>
+Status parse_verbosity(User &user, State &state, Tcallback &&callback) {
+  auto const &flag = state.remaining.front();
+  if (flag == "--verbose") {
+    callback(Verbosity::debug);
+    state.remaining = state.remaining.subspan(1); // Remove only the --verbose flag
+    return Status::match;
+  } else if (flag.starts_with("--verbose=")) {
+    auto const level_str = flag.substr(10); // Length of "--verbose="
+    if (auto verbosity = Verbosity::parse(level_str)) {
+      callback(*verbosity);
+    } else {
+      user.error("Invalid verbosity level: {:?}. "
+                "Valid levels are: debug, info, warning, error.",
+                flag);
+      return Status::bad_argument;
+    }
+    state.remaining = state.remaining.subspan(1); // Remove the --verbose=<verbosity> flag
+    return Status::match;
+  }
+  return Status::no_match;
+}
+
+// Parse flags like --log-verbosity=<verbosity>
+template <typename Tcallback>
+concept OnLogVerbosity = std::invocable<Tcallback, Verbosity::Type> &&
+                         std::same_as<std::invoke_result_t<Tcallback, Verbosity::Type>, void>;
+
+template <OnLogVerbosity Tcallback>
+Status parse_log_verbosity(User &user, State &state, Tcallback &&callback) {
+  auto const &flag = state.remaining.front();
+  if (flag.starts_with("--log-level=")) {
+    auto const level_str = flag.substr(12); // Length of "--log-level="
+    if (auto verbosity = Verbosity::parse(level_str)) {
+      callback(*verbosity);
+    } else {
+      user.error("Invalid log verbosity level: {:?}. "
+                 "Valid levels are: debug, info, warning, error.",
+                 flag);
+      return Status::bad_argument;
+    }
+    state.remaining = state.remaining.subspan(1); // Remove the --log-level=<verbosity> flag
+    return Status::match;
+  }
+  return Status::no_match;
+}
+
+template <typename Tcallback>
+concept OnVersion =
+    std::invocable<Tcallback> && std::same_as<std::invoke_result_t<Tcallback>, void>;
+
+template <OnVersion Tcallback>
+Status parse_version(User &user, State &state, Tcallback &&callback) {
+  if (state.remaining.front() == "--version") {
+    state.remaining = state.remaining.subspan(1); // Remove the flag
+    callback();
+    return Status::match;
+  }
+  return Status::no_match;
+}
+
+spdlog::level::level_enum to_spdlog_level(Verbosity::Type verbosity) {
+  switch (verbosity) {
+  case Verbosity::debug:
+    return spdlog::level::debug;
+  case Verbosity::info:
+    return spdlog::level::info;
+  case Verbosity::warning:
+    return spdlog::level::warn;
+  case Verbosity::error:
+    return spdlog::level::err;
+  }
+  std::abort();
+}
+
+} // unnamed namespace
+
+std::string help_message(std::string_view program_name) {
+  return fmt::format("{}\n"
+                     "\n"
+                     "Usage: {} [subcommand] [options]\n"
+                     "\n"
+                     "Commands:\n"
+                     "  {}\n"
+                     "\n"
+                     "Global options:\n"
+                     "  --help\n"
+                     "        Display the concise help for this command.\n"
+                     "  --verbosity[=LEVEL]\n"
+                     "        Set user output verbosity level (debug, info, warning, error).\n"
+                     "  --log-verbosity=LEVEL\n"
+                     "        Set spdlog verbosity level (debug, info, warning, error).\n"
+                     "  --version\n"
+                     "        Display the {} version.\n",
+                     short_description, program_name, fmt::join(subcommand_names, "\n  "),
+                     program_name);
+}
+
+std::string version_message() { return fmt::format("bx version {}", version_string); }
+
+tl::expected<std::unique_ptr<Action>, Error> parse(User &user, std::string_view program_name,
+                                                   Args args) {
   if (args.empty()) {
-    spdlog::error("No arguments provided. Expected at least the program name.");
-    return tl::unexpected(Status::no_arguments);
-  }
-  CLI::App app{"bx", app_description};
-
-  Config config;
-  app.add_flag("-v,--verbose", config.verbose, "Enable verbose output");
-  app.set_version_flag("-V,--version", version_string);
-
-  // Convert span to vector of strings for CLI11
-  std::vector<std::string> str_args;
-  str_args.reserve(args.size());
-  auto const args_only = args.subspan(1); // Skip the first argument (program name)
-  for (const auto &arg : args_only) {
-    str_args.emplace_back(arg);
+    return std::make_unique<Action>(Action::Type::help);
   }
 
-  // Support the cmake subcommand
-  auto cmake_sub = app.add_subcommand("cmake", "Run CMake with better defaults");
-  cmake_sub->callback([&config]() { config.subcommand = Subcommand::cmake; });
-  cmake_sub->allow_extras();
-  cmake_sub->add_option("cmake_args", config.extra_args, "Arguments to pass to CMake")
-      ->expected(-1);
+  State state{.remaining = args};
 
-  // Support the run subcommand
-  auto run_sub = app.add_subcommand("run", "Run any program");
-  run_sub->callback([&config]() { config.subcommand = Subcommand::run; });
-  run_sub->allow_extras();
-  run_sub->add_option("run_args", config.extra_args, "Arguments to pass to the program")
-      ->expected(-1);
+  std::unique_ptr<Action> action;
+  while (!state.remaining.empty()) {
+    if (args.empty()) {
+      break;
+    }
 
-  try {
-    app.parse(str_args);
-  } catch (const CLI::CallForHelp &e) {
-    spdlog::info("{}", app.help());
-    return tl::unexpected(Status::help_requested);
-  } catch (const CLI::CallForVersion &e) {
-    spdlog::info("bx version {}", app.version());
-    return tl::unexpected(Status::version_requested);
-  } catch (const CLI::ParseError &e) {
-    spdlog::error("{}", e.what());
-    return tl::unexpected(Status::parse_error);
+    // Parse help
+    {
+      auto const status = parse_help(
+          user, state, [&action] { action = std::make_unique<Action>(Action::Type::help); });
+      if (status == Status::match) {
+        break;
+      }
+    }
+    // Parse version
+    {
+      auto const status = parse_version(
+          user, state, [&action] { action = std::make_unique<Action>(Action::Type::version); });
+      if (status == Status::match) {
+        break;
+      }
+    }
+    // Parse verbosity
+    {
+      auto const status = parse_verbosity(
+          user, state, [&user](Verbosity::Type verbosity) { user.verbosity = verbosity; });
+      if (status == Status::match) {
+        continue;
+      } else if (status == Status::bad_argument) {
+        return tl::unexpected(Error::bad_command);
+      }
+    }
+    // Parse log verbosity
+    {
+      auto const status = parse_log_verbosity(user, state, [](Verbosity::Type verbosity) {
+        spdlog::set_level(to_spdlog_level(verbosity));
+      });
+      if (status == Status::match) {
+        continue;
+      } else if (status == Status::bad_argument) {
+        return tl::unexpected(Error::bad_command);
+      }
+    }
+    // Parse subcommands
+    {
+      auto const status = parse_subcommand(
+          user, state, [&action](std::string_view subcommand_name, Args subcommand_args) {
+            SubcommandPayload payload;
+            payload.name = subcommand_name;
+            payload.args.assign(subcommand_args.begin(), subcommand_args.end());
+            action = std::make_unique<Action>(Action::Type::subcommand, payload);
+          });
+      if (status == Status::match) {
+        break;
+      }
+    }
+    // No matches!
+    {
+      user.error("Unexpected argument found: "
+                 "{:?}.\n"
+                 "\n"
+                 "Usage: {} [OPTIONS] <COMMAND>\n"
+                 "hi\n"
+                 "For more information, try  `--help`.",
+                 state.remaining.front(), program_name);
+      return tl::unexpected(Error::bad_command);
+    }
   }
 
-  return config;
+  if (!action) {
+    user.error("{:?} requires a subcommand but one was not provided.\n"
+               "  [subcommands: {}]\n"
+               "\n"
+               "Usage: {} [OPTIONS] <COMMAND>\n"
+               "\n"
+               "For more information, try `--help`.",
+               program_name, fmt::join(subcommand_names, ", "), program_name);
+    return tl::unexpected(Error::no_subcommand);
+  }
+
+  return std::move(action);
 }
 
 } // namespace bx::core
