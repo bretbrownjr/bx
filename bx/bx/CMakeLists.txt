@@ -7,6 +7,10 @@ target_sources(bx PRIVATE
 target_link_libraries(bx PRIVATE
   bx::core
 )
+install(
+  TARGETS bx
+  COMPONENT bx
+)
 
 add_test(
   NAME bx.help
