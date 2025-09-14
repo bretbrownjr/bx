@@ -8,4 +8,4 @@ project(bx
 include(CTest)
 
 add_subdirectory(bx)
-add_subdirectory(test/core)
+add_subdirectory(test)
