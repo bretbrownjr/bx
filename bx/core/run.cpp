@@ -6,15 +6,19 @@
 #include <bx/core/user.hpp>
 #include <bx/core/verbosity.hpp>
 
+#include <chrono>
 #include <cstddef>
 #include <fmt/format.h>
-#include <spdlog/spdlog.h>
+#include <ranges>
 #include <spdlog/sinks/rotating_file_sink.h>
+#include <spdlog/spdlog.h>
 #include <tl/expected.hpp>
 
 #include <cstdlib>
 #include <span>
 #include <string_view>
+
+using namespace std::chrono_literals;
 
 namespace bx::core {
 
@@ -23,12 +27,13 @@ namespace {
 void set_up_file_logging() {
   try {
     static std::size_t log_file_size = 1048576 * 5; // 5 MB
-    static std::size_t max_log_files = 3;    // keep 3 log files
-    auto file_logger = spdlog::rotating_logger_mt("file_logger", "bx.log", log_file_size, max_log_files);
+    static std::size_t max_log_files = 3;           // keep 3 log files
+    auto file_logger =
+        spdlog::rotating_logger_mt("file_logger", "bx.log", log_file_size, max_log_files);
     spdlog::set_default_logger(file_logger);
     spdlog::set_level(spdlog::level::debug);
     spdlog::flush_on(spdlog::level::info);
-  } catch (const spdlog::spdlog_ex& ex) {
+  } catch (const spdlog::spdlog_ex &ex) {
     // Fallback to console if file logging fails
     spdlog::error("Log file creation failed: {}", ex.what());
   }
@@ -50,7 +55,36 @@ void handle_run(SubcommandPayload const &payload, User &user) {
     command.push_back("true");
     user.debug("No command was provided for the \"run\" subcommand. Running [\"true\"].");
   }
+
+  // Format the command for display
+  std::string const command_str =
+      fmt::format("[{}]", fmt::join(command | std::ranges::views::transform([](const auto &arg) {
+                                      return fmt::format("{:?}", arg);
+                                    }),
+                                    ", "));
+
+  auto start_time = std::chrono::steady_clock::now();
   Result const result = subprocess_call(user, command);
+  auto end_time = std::chrono::steady_clock::now();
+
+  auto duration = end_time - start_time;
+
+  std::string timing_message;
+  if (duration <= 9999ms) {
+    auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration);
+    timing_message = fmt::format("{}ms", duration_ms.count());
+  } else if (duration <= 599s) {
+    auto duration_s = std::chrono::duration_cast<std::chrono::seconds>(duration);
+    timing_message = fmt::format("{}s", duration_s.count());
+  } else {
+    auto duration_min = std::chrono::duration_cast<std::chrono::minutes>(duration);
+    auto duration_s = std::chrono::duration_cast<std::chrono::seconds>(duration);
+    auto remaining_s = duration_s.count() % 60;
+    timing_message = fmt::format("{}m{}s", duration_min.count(), remaining_s);
+  }
+
+  user.info("Ran command in {}: {}", timing_message, command_str);
+
   if (result.exit_code != 0) {
     user.warning("Subcommand \"{}\" failed with exit code: {}", payload.name, result.exit_code);
     std::exit(result.exit_code);
