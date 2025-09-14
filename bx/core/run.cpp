@@ -56,6 +56,8 @@ void handle_run(SubcommandPayload const &payload, User &user) {
     user.debug("No command was provided for the \"run\" subcommand. Running [\"true\"].");
   }
 
+  user.warning("TODO: Parse options that appear before the command.");
+
   // Format the command for display
   std::string const command_str =
       fmt::format("[{}]", fmt::join(command | std::ranges::views::transform([](const auto &arg) {
@@ -111,13 +113,13 @@ void handle_version(SubcommandPayload const &, User &user) { user.info(version_m
 
 void handle_subcommand(SubcommandPayload const &payload, User &user) {
   using Handler = void (*)(SubcommandPayload const &, User &);
-  std::unordered_map<std::string, Handler> subcommand_registry = {
+  std::unordered_map<std::string, Handler> const subcommand_registry = {
       {"run", handle_run},
       {"cmake", handle_cmake},
       {"help", handle_help},
       {"version", handle_version},
   };
-  auto handler_it = subcommand_registry.find(payload.name);
+  auto const handler_it = subcommand_registry.find(payload.name);
   check(user, handler_it != subcommand_registry.end(),
         fmt::format("Subcommand {:?} is not implemented yet.", payload.name));
   handler_it->second(payload, user);

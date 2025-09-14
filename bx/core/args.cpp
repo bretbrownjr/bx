@@ -149,9 +149,9 @@ std::string help_message(std::string_view program_name) {
                      "Global options:\n"
                      "  --help\n"
                      "        Display the concise help for this command.\n"
-                     "  --verbosity[=LEVEL]\n"
+                     "  --verbose[=LEVEL]\n"
                      "        Set user output verbosity level (debug, info, warning, error).\n"
-                     "  --log-verbosity=LEVEL\n"
+                     "  --log-level=LEVEL\n"
                      "        Set spdlog verbosity level (debug, info, warning, error).\n"
                      "  --version\n"
                      "        Display the {} version.\n",
@@ -231,7 +231,7 @@ tl::expected<std::unique_ptr<Action>, Error> parse(User &user, std::string_view 
                  "{:?}.\n"
                  "\n"
                  "Usage: {} [OPTIONS] <COMMAND>\n"
-                 "hi\n"
+                 "\n"
                  "For more information, try  `--help`.",
                  state.remaining.front(), program_name);
       return tl::unexpected(Error::bad_command);
