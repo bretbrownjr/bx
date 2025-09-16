@@ -6,20 +6,23 @@
 
 namespace bx::core {
 
-std::optional<Verbosity::Type> Verbosity::parse(std::string_view verbosity_str) {
-  if (verbosity_str == "debug") {
+auto Verbosity::parse(std::string_view verbosityString) -> std::optional<Verbosity::Type> {
+  if (verbosityString == "debug") {
     return Verbosity::debug;
-  } else if (verbosity_str == "info") {
+  }
+  if (verbosityString == "info") {
     return Verbosity::info;
-  } else if (verbosity_str == "warning") {
+  }
+  if (verbosityString == "warning") {
     return Verbosity::warning;
-  } else if (verbosity_str == "error") {
+  }
+  if (verbosityString == "error") {
     return Verbosity::error;
   }
   return std::nullopt;
 }
 
-std::string to_string(Verbosity::Type verbosity) {
+auto to_string(Verbosity::Type verbosity) -> std::string {
   switch (verbosity) {
   case Verbosity::debug: {
     return "debug";

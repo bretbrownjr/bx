@@ -18,44 +18,33 @@ struct User {
   // Show a message to the user.
   void show(std::string_view message, Verbosity::Type verbosity = Verbosity::info) const;
 
-  inline void debug(std::string_view message) const {
-    show(message, Verbosity::debug);
-  }
+  void debug(std::string_view message) const { show(message, Verbosity::debug); }
 
-  inline void info(std::string_view message) const {
-    show(message, Verbosity::info);
-  }
+  void info(std::string_view message) const { show(message, Verbosity::info); }
 
-  inline void warning(std::string_view message) const {
-    show(message, Verbosity::warning);
-  }
+  void warning(std::string_view message) const { show(message, Verbosity::warning); }
 
-  inline void error(std::string_view message) const {
-    show(message, Verbosity::error);
-  }
+  void error(std::string_view message) const { show(message, Verbosity::error); }
 
   template <typename... Targs>
   void show(Verbosity::Type verbosity, fmt::format_string<Targs...> fmt, Targs &&...args) const {
     show(fmt::vformat(fmt, fmt::make_format_args(std::forward<Targs>(args)...)), verbosity);
   }
 
-  template<typename... Targs>
-  void debug(fmt::format_string<Targs...> fmt, Targs &&...args) const {
+  template <typename... Targs> void debug(fmt::format_string<Targs...> fmt, Targs &&...args) const {
     show(Verbosity::debug, fmt, std::forward<Targs>(args)...);
   }
 
-  template<typename... Targs>
-  void info(fmt::format_string<Targs...> fmt, Targs &&...args) const {
+  template <typename... Targs> void info(fmt::format_string<Targs...> fmt, Targs &&...args) const {
     show(Verbosity::info, fmt, std::forward<Targs>(args)...);
   }
 
-  template<typename... Targs>
+  template <typename... Targs>
   void warning(fmt::format_string<Targs...> fmt, Targs &&...args) const {
     show(Verbosity::warning, fmt, std::forward<Targs>(args)...);
   }
 
-  template<typename... Targs>
-  void error(fmt::format_string<Targs...> fmt, Targs &&...args) const {
+  template <typename... Targs> void error(fmt::format_string<Targs...> fmt, Targs &&...args) const {
     show(Verbosity::error, fmt, std::forward<Targs>(args)...);
   }
 };

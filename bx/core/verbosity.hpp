@@ -22,11 +22,11 @@ struct Verbosity {
   // Parse a verbosity string into a verbosity type
   // Returns nullopt if the string is not a valid verbosity level
   [[nodiscard]]
-  static std::optional<Verbosity::Type> parse(std::string_view verbosity_str);
+  static auto parse(std::string_view verbosityString) -> std::optional<Verbosity::Type>;
 };
 
 [[nodiscard]]
-std::string to_string(Verbosity::Type verbosity);
+auto to_string(Verbosity::Type verbosity) -> std::string;
 
 } // namespace bx::core
 

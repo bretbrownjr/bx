@@ -37,41 +37,16 @@ set_tests_properties(bx.bad_subcommand PROPERTIES
 )
 
 add_test(
-  NAME bx.run
-  COMMAND bx "run"
-)
-set_tests_properties(bx.run PROPERTIES
-  WILL_FAIL TRUE
-  PASS_REGULAR_EXPRESSION "No command was provided to run. See `bx run --help` for usage."
-)
-
-add_test(
-  NAME bx.run_true
-  COMMAND bx "run" "true"
-)
-set_tests_properties(bx.run_true PROPERTIES
-  PASS_REGULAR_EXPRESSION "Ran command"
-)
-
-add_test(
-  NAME bx.lower_verbosity
-  COMMAND bx "--verbose=warning" "run" "true"
-)
-set_tests_properties(bx.lower_verbosity PROPERTIES
-  FAIL_REGULAR_EXPRESSION "Ran command"
-)
-
-add_test(
   NAME bx.cmake
-  COMMAND bx "cmake"
+  COMMAND bx "--verbose=warning" "cmake"
 )
 set_tests_properties(bx.cmake PROPERTIES
-  PASS_REGULAR_EXPRESSION "Ran command in .*: \\[\"cmake\"\\]"
+  FAIL_REGULAR_EXPRESSION "Ran command in .*: \\[\"cmake\"\\]"
 )
 
 add_test(
   NAME bx.cmake.version
-  COMMAND bx "cmake" "--version"
+  COMMAND bx "--verbose=warning" "cmake" "--version"
 )
 # Should print the version of CMake, not bx
 set_tests_properties(bx.cmake.version PROPERTIES

@@ -2,6 +2,7 @@
 
 #include <bx/core/args.hpp>
 
+#include <bx/core/subcommand.hpp>
 #include <bx/core/verbosity.hpp>
 
 #include <fmt/core.h>
@@ -10,34 +11,35 @@
 
 #include <cstdlib>
 #include <memory>
+#include <ranges>
 #include <string>
 
 namespace bx::core {
 
 namespace {
 
-static constexpr std::string version_string = "0.0.1";
+constexpr std::string versionString = "0.0.1";
 
-static constexpr char short_description[] = "A better build experience for C++ projects.";
+constexpr std::string_view shortDescription = "A better build experience for C++ projects.";
 
-static std::vector<std::string_view> const subcommand_names = {"cmake", "help", "run", "version"};
+std::vector<std::string_view> const subcommandNames = {"cmake", "help", "tool", "version"};
 
 struct State {
   Args remaining;
 };
 
-enum class Status { match, no_match, bad_argument };
+enum class Status : std::uint8_t { match, no_match, bad_argument };
 
 template <typename Tcallback>
 concept OnSubcommand = std::invocable<Tcallback, std::string_view, Args> &&
                        std::same_as<std::invoke_result_t<Tcallback, std::string_view, Args>, void>;
 
 template <OnSubcommand Tcallback>
-Status parse_subcommand(User &user, State &state, Tcallback &&callback) {
-  for (const auto &subcommand_name : subcommand_names) {
-    if (state.remaining.front() == subcommand_name) {
+auto parse_subcommand(User &user, State &state, Tcallback &&callback) -> Status {
+  for (const auto &subcommandName : subcommandNames) {
+    if (state.remaining.front() == subcommandName) {
       state.remaining = state.remaining.subspan(1); // Remove the matched subcommand
-      callback(subcommand_name, state.remaining);
+      callback(subcommandName, state.remaining);
       return Status::match;
     }
   }
@@ -47,7 +49,7 @@ Status parse_subcommand(User &user, State &state, Tcallback &&callback) {
 template <typename Tcallback>
 concept OnHelp = std::invocable<Tcallback> && std::same_as<std::invoke_result_t<Tcallback>, void>;
 
-template <OnHelp Tcallback> Status parse_help(User &user, State &state, Tcallback &&callback) {
+template <OnHelp Tcallback> auto parse_help(User &user, State &state, Tcallback &&callback) -> Status {
   if (state.remaining.front() == "--help" || state.remaining.front() == "-h") {
     state.remaining = state.remaining.subspan(1); // Remove the flag
     callback();
@@ -62,20 +64,21 @@ concept OnVerbosity = std::invocable<Tcallback, Verbosity::Type> &&
                       std::same_as<std::invoke_result_t<Tcallback, Verbosity::Type>, void>;
 
 template <OnVerbosity Tcallback>
-Status parse_verbosity(User &user, State &state, Tcallback &&callback) {
+auto parse_verbosity(User &user, State &state, Tcallback &&callback) -> Status {
   auto const &flag = state.remaining.front();
   if (flag == "--verbose") {
     callback(Verbosity::debug);
     state.remaining = state.remaining.subspan(1); // Remove only the --verbose flag
     return Status::match;
-  } else if (flag.starts_with("--verbose=")) {
-    auto const level_str = flag.substr(10); // Length of "--verbose="
-    if (auto verbosity = Verbosity::parse(level_str)) {
+  }
+  if (flag.starts_with("--verbose=")) {
+    auto const levelString = flag.substr(10); // Length of "--verbose="
+    if (auto verbosity = Verbosity::parse(levelString)) {
       callback(*verbosity);
     } else {
       user.error("Invalid verbosity level: {:?}. "
-                "Valid levels are: debug, info, warning, error.",
-                flag);
+                 "Valid levels are: debug, info, warning, error.",
+                 flag);
       return Status::bad_argument;
     }
     state.remaining = state.remaining.subspan(1); // Remove the --verbose=<verbosity> flag
@@ -90,11 +93,11 @@ concept OnLogVerbosity = std::invocable<Tcallback, Verbosity::Type> &&
                          std::same_as<std::invoke_result_t<Tcallback, Verbosity::Type>, void>;
 
 template <OnLogVerbosity Tcallback>
-Status parse_log_verbosity(User &user, State &state, Tcallback &&callback) {
+auto parse_log_verbosity(User &user, State &state, Tcallback &&callback) -> Status {
   auto const &flag = state.remaining.front();
   if (flag.starts_with("--log-level=")) {
-    auto const level_str = flag.substr(12); // Length of "--log-level="
-    if (auto verbosity = Verbosity::parse(level_str)) {
+    auto const levelString = flag.substr(12); // Length of "--log-level="
+    if (auto verbosity = Verbosity::parse(levelString)) {
       callback(*verbosity);
     } else {
       user.error("Invalid log verbosity level: {:?}. "
@@ -113,7 +116,7 @@ concept OnVersion =
     std::invocable<Tcallback> && std::same_as<std::invoke_result_t<Tcallback>, void>;
 
 template <OnVersion Tcallback>
-Status parse_version(User &user, State &state, Tcallback &&callback) {
+auto parse_version(User &user, State &state, Tcallback &&callback) -> Status {
   if (state.remaining.front() == "--version") {
     state.remaining = state.remaining.subspan(1); // Remove the flag
     callback();
@@ -122,7 +125,8 @@ Status parse_version(User &user, State &state, Tcallback &&callback) {
   return Status::no_match;
 }
 
-spdlog::level::level_enum to_spdlog_level(Verbosity::Type verbosity) {
+[[nodiscard]]
+auto to_spdlog_level(Verbosity::Type verbosity) -> spdlog::level::level_enum {
   switch (verbosity) {
   case Verbosity::debug:
     return spdlog::level::debug;
@@ -138,7 +142,14 @@ spdlog::level::level_enum to_spdlog_level(Verbosity::Type verbosity) {
 
 } // unnamed namespace
 
-std::string help_message(std::string_view program_name) {
+auto format_command(Args const &args) -> std::string {
+  return fmt::format("[{}]", fmt::join(args | std::ranges::views::transform([](const auto &arg) {
+                                         return fmt::format("{:?}", arg);
+                                       }),
+                                       ", "));
+}
+
+auto help_message(std::string_view program_name) -> std::string {
   return fmt::format("{}\n"
                      "\n"
                      "Usage: {} [subcommand] [options]\n"
@@ -155,14 +166,14 @@ std::string help_message(std::string_view program_name) {
                      "        Set spdlog verbosity level (debug, info, warning, error).\n"
                      "  --version\n"
                      "        Display the {} version.\n",
-                     short_description, program_name, fmt::join(subcommand_names, "\n  "),
+                     shortDescription, program_name, fmt::join(subcommandNames, "\n  "),
                      program_name);
 }
 
-std::string version_message() { return fmt::format("bx version {}", version_string); }
+auto version_message() -> std::string { return fmt::format("bx version {}", versionString); }
 
-tl::expected<std::unique_ptr<Action>, Error> parse(User &user, std::string_view program_name,
-                                                   Args args) {
+auto parse(User &user, std::string_view program_name,
+           Args args) -> tl::expected<std::unique_ptr<Action>, Error> {
   if (args.empty()) {
     return std::make_unique<Action>(Action::Type::help);
   }
@@ -197,7 +208,8 @@ tl::expected<std::unique_ptr<Action>, Error> parse(User &user, std::string_view 
           user, state, [&user](Verbosity::Type verbosity) { user.verbosity = verbosity; });
       if (status == Status::match) {
         continue;
-      } else if (status == Status::bad_argument) {
+      }
+      if (status == Status::bad_argument) {
         return tl::unexpected(Error::bad_command);
       }
     }
@@ -208,7 +220,8 @@ tl::expected<std::unique_ptr<Action>, Error> parse(User &user, std::string_view 
       });
       if (status == Status::match) {
         continue;
-      } else if (status == Status::bad_argument) {
+      }
+      if (status == Status::bad_argument) {
         return tl::unexpected(Error::bad_command);
       }
     }
@@ -245,7 +258,7 @@ tl::expected<std::unique_ptr<Action>, Error> parse(User &user, std::string_view 
                "Usage: {} [OPTIONS] <COMMAND>\n"
                "\n"
                "For more information, try `--help`.",
-               program_name, fmt::join(subcommand_names, ", "), program_name);
+               program_name, fmt::join(subcommandNames, ", "), program_name);
     return tl::unexpected(Error::no_subcommand);
   }
 

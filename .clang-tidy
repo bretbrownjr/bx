@@ -1,15 +1,16 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-Checks: '-*,clang-analyzer-*,bugprone-*,performance-*,readability-*,modernize-*'
+Checks: '-*,clang-analyzer-*,bugprone-*,-bugprone-switch-missing-default-case,performance-*,readability-*,modernize-*'
 WarningsAsErrors: ''
 HeaderFilterRegex: ''
-AnalyzeTemporaryDtors: false
 FormatStyle: none
 User: ''
 CheckOptions:
-    - key:             modernize-use-nullptr.NullMacros
-        value:           'NULL'
-    - key:             readability-identifier-naming.VariableCase
-        value:           camelCase
-    - key:             readability-identifier-naming.FunctionCase
-        value:           CamelCase
+  - key: modernize-use-nullptr.NullMacros
+    value: 'NULL'
+  - key: readability-identifier-naming.VariableCase
+    value: camelBack
+  - key: readability-identifier-naming.FunctionCase
+    value: lower_case
+  - key: readability-identifier-naming.ClassCase
+    value: CamelCase
