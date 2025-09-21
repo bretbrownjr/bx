@@ -52,9 +52,9 @@ using SubprocessCallFn = std::function<Result(User const &, Args)>;
 
 struct SubprocessCallGuard {
 
-  SubprocessCallGuard(SubprocessCallFn fn) {
+  SubprocessCallGuard(SubprocessCallFn func) {
     originalFunc = bx::core::subprocess_call;
-    bx::core::subprocess_call = fn;
+    bx::core::subprocess_call = std::move(func);
   }
   ~SubprocessCallGuard() { bx::core::subprocess_call = originalFunc; }
 
