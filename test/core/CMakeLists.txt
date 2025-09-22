@@ -12,13 +12,13 @@ set_source_files_properties(args.cpp
 target_sources(bx.core.test PRIVATE
     args.cpp
     core.cpp
+    subprocess.cpp
+    which.cpp
 )
 target_link_libraries(bx.core.test PRIVATE
     bx::core
     GTest::gtest
     GTest::gtest_main
 )
-add_test(
-    NAME bx.core.test
-    COMMAND bx.core.test
-)
+include(GoogleTest)
+gtest_discover_tests(bx.core.test)

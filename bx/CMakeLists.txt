@@ -11,6 +11,7 @@ target_sources(bx_core PRIVATE
   "core/subcommand.cpp"
   "core/subprocess.cpp"
   "core/user.cpp"
+  "core/which.cpp"
   "core/verbosity.cpp"
   "tool/tool.cpp"
 )
@@ -24,6 +25,7 @@ target_sources(bx_core PUBLIC
     "core/subcommand.hpp"
     "core/subprocess.hpp"
     "core/user.hpp"
+    "core/which.hpp"
     "core/verbosity.hpp"
     "tool/tool.hpp"
 )

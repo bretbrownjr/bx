@@ -4,6 +4,6 @@
 
 #include <gtest/gtest.h>
 
-TEST(bx_core, simple) {
+TEST(BxCore, Simple) {
     SUCCEED();
 }
