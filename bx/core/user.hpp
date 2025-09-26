@@ -7,6 +7,7 @@
 
 #include <fmt/core.h>
 
+#include <string>
 #include <string_view>
 
 namespace bx::core {
@@ -48,6 +49,10 @@ struct User {
     show(Verbosity::error, fmt, std::forward<Targs>(args)...);
   }
 };
+
+/// Get the default log file path using XDG specification.
+[[nodiscard]]
+auto get_default_log_file_path() -> std::string;
 
 } // namespace bx::core
 

@@ -15,6 +15,7 @@
 #include <tl/expected.hpp>
 
 #include <cstdlib>
+#include <optional>
 #include <span>
 #include <string_view>
 
@@ -22,7 +23,7 @@ namespace bx::core {
 
 namespace {
 
-void set_up_file_logging() {
+void set_up_file_logging(std::string const &logFilePath) {
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
   static constexpr std::size_t oneMegabyte = 1048576;
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
@@ -30,7 +31,7 @@ void set_up_file_logging() {
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers,readability-magic-numbers)
   static std::size_t maxLogFiles = 3; // keep 3 log files
   try {
-    auto fileLogger = spdlog::rotating_logger_mt("file_logger", "bx.log", logFileSize, maxLogFiles);
+    auto fileLogger = spdlog::rotating_logger_mt("file_logger", logFilePath, logFileSize, maxLogFiles);
     fileLogger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] [%s:%#] %v");
     spdlog::set_default_logger(fileLogger);
     spdlog::set_level(spdlog::level::debug);
@@ -103,18 +104,38 @@ auto handle_subcommand(SubcommandPayload const &payload, User &user) -> HandleSt
   return handlerIter->second(payload, user);
 }
 
+/// Extract the log file path from arguments, if specified.
+/// Returns the path if --log-file=<path> is found, otherwise returns nullopt.
+[[nodiscard]]
+auto extract_log_file_path(Args args) -> std::optional<std::string> {
+  static constexpr std::size_t logFilePrefixLength = 11; // Length of "--log-file="
+  for (auto const &arg : args) {
+    if (arg.starts_with("--log-file=")) {
+      return std::string(arg.substr(logFilePrefixLength));
+    }
+  }
+  return std::nullopt;
+}
+
 } // unnamed namespace
 
 void run(std::span<std::string_view> argv) {
-  set_up_file_logging();
-
-  User user;
-
-  check(user, !argv.empty(),
+  check({}, !argv.empty(),
         "Expected a program name as the first CLI argument. "
         "Got these args instead: [].");
+
   auto const programName = argv[0];
   Args const args = argv.subspan(1);
+
+  // Extract log file path early, before setting up logging
+  auto logFilePath = extract_log_file_path(args);
+  if (!logFilePath.has_value()) {
+    logFilePath = get_default_log_file_path();
+  }
+
+  set_up_file_logging(*logFilePath);
+
+  User user;
 
   auto maybeAction = parse(user, programName, args);
   if (!maybeAction.has_value()) {

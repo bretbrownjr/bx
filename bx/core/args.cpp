@@ -87,6 +87,23 @@ auto parse_verbosity(User &user, State &state, Tcallback &&callback) -> Status {
   return Status::no_match;
 }
 
+// Parse flags like --log-file=<path>
+template <typename Tcallback>
+concept OnLogFile = std::invocable<Tcallback, std::string_view> &&
+                    std::same_as<std::invoke_result_t<Tcallback, std::string_view>, void>;
+
+template <OnLogFile Tcallback>
+auto parse_log_file(User &user, State &state, Tcallback &&callback) -> Status {
+  auto const &flag = state.remaining.front();
+  if (flag.starts_with("--log-file=")) {
+    auto const filePath = flag.substr(11); // Length of "--log-file="
+    callback(filePath);
+    state.remaining = state.remaining.subspan(1); // Remove the --log-file=<path> flag
+    return Status::match;
+  }
+  return Status::no_match;
+}
+
 // Parse flags like --log-verbosity=<verbosity>
 template <typename Tcallback>
 concept OnLogVerbosity = std::invocable<Tcallback, Verbosity::Type> &&
@@ -162,6 +179,8 @@ auto help_message(std::string_view program_name) -> std::string {
                      "        Display the concise help for this command.\n"
                      "  --verbose[=LEVEL]\n"
                      "        Set user output verbosity level (debug, info, warning, error).\n"
+                     "  --log-file=PATH\n"
+                     "        Set the log file path (default: XDG_DATA_HOME/bx/bx.log or bx.log).\n"
                      "  --log-level=LEVEL\n"
                      "        Set spdlog verbosity level (debug, info, warning, error).\n"
                      "  --version\n"
@@ -211,6 +230,16 @@ auto parse(User &user, std::string_view program_name,
       }
       if (status == Status::bad_argument) {
         return tl::unexpected(Error::bad_command);
+      }
+    }
+    // Parse log file
+    {
+      auto const status = parse_log_file(user, state, [](std::string_view) {
+        // Log file is already extracted and applied early in run(),
+        // so we just consume the argument here
+      });
+      if (status == Status::match) {
+        continue;
       }
     }
     // Parse log verbosity

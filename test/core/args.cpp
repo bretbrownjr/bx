@@ -95,7 +95,7 @@ TEST(BxArgs, ParseUnknownSubcommand) {
 
   // THEN: It should return an error indicating the subcommand is unknown
   ASSERT_FALSE(result.has_value());
-  ASSERT_EQ(result->get()->type, bx::core::Action::Type::help);
+  ASSERT_EQ(result.error(), bx::core::Error::bad_command);
 }
 
 TEST(BxArgs, ParseHelp) {
